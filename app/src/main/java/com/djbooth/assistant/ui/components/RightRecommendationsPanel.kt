@@ -21,9 +21,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
@@ -51,7 +54,10 @@ import com.djbooth.assistant.ui.theme.TextSecondary
 @Composable
 fun RightRecommendationsPanel(
     recommendations: List<RecommendationResult>,
+    playlistQueue: List<Track>,
     onSelectTrack: (Track) -> Unit,
+    onSelectTrackFromPeak: (Track) -> Unit,
+    onAddToQueue: (Track) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -60,7 +66,7 @@ fun RightRecommendationsPanel(
             .clip(RoundedCornerShape(12.dp))
             .background(DJPanelBackground)
             .border(1.dp, Color(0xFF2B3148), RoundedCornerShape(12.dp))
-            .padding(16.dp)
+            .padding(14.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header
@@ -77,31 +83,51 @@ fun RightRecommendationsPanel(
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     Text(
-                        text = "TOP 3 SUGERENCIAS SMART",
+                        text = "TOP 3 RECOMENDACIONES",
                         color = TextPrimary,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
+                        fontSize = 12.sp,
                         letterSpacing = 1.sp
                     )
                 }
 
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(NeonEmerald.copy(alpha = 0.2f))
-                        .border(1.dp, NeonEmerald, RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "Filtro ±5% BPM & Camelot",
-                        color = NeonEmerald,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (playlistQueue.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(NeonMagenta.copy(alpha = 0.2f))
+                                .border(1.dp, NeonMagenta, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "Cola: ${playlistQueue.size} temas",
+                                color = NeonMagenta,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(NeonEmerald.copy(alpha = 0.2f))
+                            .border(1.dp, NeonEmerald, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "±5% BPM & Camelot",
+                            color = NeonEmerald,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             if (recommendations.isEmpty()) {
                 Box(
@@ -113,26 +139,29 @@ fun RightRecommendationsPanel(
                             imageVector = Icons.Default.QueueMusic,
                             contentDescription = "Sin datos",
                             tint = TextSecondary,
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier.size(44.dp)
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Importa una carpeta para ver recomendaciones",
+                            text = "Importa canciones locales para calcular sugerencias",
                             color = TextSecondary,
-                            fontSize = 14.sp
+                            fontSize = 13.sp
                         )
                     }
                 }
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize()
                 ) {
                     itemsIndexed(recommendations) { index, item ->
                         RecommendationCard(
                             rank = index + 1,
                             result = item,
-                            onLoadToDeck = { onSelectTrack(item.track) }
+                            isInQueue = playlistQueue.any { it.id == item.track.id },
+                            onLoadToDeck = { onSelectTrack(item.track) },
+                            onLoadFromPeak = { onSelectTrackFromPeak(item.track) },
+                            onAddToQueue = { onAddToQueue(item.track) }
                         )
                     }
                 }
@@ -145,7 +174,10 @@ fun RightRecommendationsPanel(
 fun RecommendationCard(
     rank: Int,
     result: RecommendationResult,
-    onLoadToDeck: () -> Unit
+    isInQueue: Boolean,
+    onLoadToDeck: () -> Unit,
+    onLoadFromPeak: () -> Unit,
+    onAddToQueue: () -> Unit
 ) {
     val rankColor = when (rank) {
         1 -> NeonEmerald
@@ -160,7 +192,7 @@ fun RecommendationCard(
             .clip(RoundedCornerShape(10.dp))
             .background(DJCardSurface)
             .border(1.dp, rankColor.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-            .padding(12.dp)
+            .padding(10.dp)
     ) {
         Column {
             Row(
@@ -173,10 +205,9 @@ fun RecommendationCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Badge de Posición (#1, #2, #3)
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
+                            .size(26.dp)
                             .clip(CircleShape)
                             .background(rankColor.copy(alpha = 0.25f))
                             .border(1.dp, rankColor, CircleShape),
@@ -187,18 +218,18 @@ fun RecommendationCard(
                             color = rankColor,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,
-                            fontSize = 12.sp
+                            fontSize = 11.sp
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     Column {
                         Text(
                             text = result.track.title,
                             color = TextPrimary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
+                            fontSize = 14.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -206,37 +237,37 @@ fun RecommendationCard(
                             text = result.track.artist,
                             color = TextSecondary,
                             fontWeight = FontWeight.Medium,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                // Porcentaje de Compatibilidad Total
+                // Porcentaje de Match
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .background(rankColor.copy(alpha = 0.2f))
                         .border(1.5.dp, rankColor, RoundedCornerShape(8.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = "${result.overallScorePercent}% MATCH",
                         color = rankColor,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace,
-                        fontSize = 13.sp
+                        fontSize = 12.sp
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // Badges de BPM, Key y Compatibilidad Armónica
+            // Badges
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 CamelotKeyBadge(key = result.track.key, showMusicalKey = false)
 
@@ -244,7 +275,7 @@ fun RecommendationCard(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .background(Color(0xFF262C40))
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = "${result.track.bpm.toInt()} BPM (${String.format("%+.1f", result.bpmDiffPercent)}%)",
@@ -259,68 +290,110 @@ fun RecommendationCard(
                     modifier = Modifier
                         .clip(RoundedCornerShape(6.dp))
                         .background(NeonCyan.copy(alpha = 0.15f))
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .padding(horizontal = 6.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = result.harmonicCompatibilityLabel,
                         color = NeonCyan,
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
-            // PUNTO DE MEZCLA SUGERIDO (REQUERIDO)
+            // Punto de mezcla
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(6.dp))
                     .background(Color(0xFF141724))
-                    .border(1.dp, NeonMagenta.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = "Punto Mezcla",
-                        tint = NeonMagenta,
-                        modifier = Modifier.size(16.dp).padding(end = 4.dp)
-                    )
-                    Text(
-                        text = "PUNTO DE MEZCLA SUGERIDO: ",
-                        color = NeonMagenta,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
-                    Text(
-                        text = result.suggestedMixPointText,
-                        color = TextPrimary,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 11.sp
-                    )
-                }
+                Icon(
+                    imageVector = Icons.Default.MusicNote,
+                    contentDescription = "Punto Mezcla",
+                    tint = NeonMagenta,
+                    modifier = Modifier.size(14.dp).padding(end = 4.dp)
+                )
+                Text(
+                    text = "PUNTO DE MEZCLA: ",
+                    color = NeonMagenta,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 10.sp
+                )
+                Text(
+                    text = result.suggestedMixPointText,
+                    color = TextPrimary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 10.sp
+                )
+            }
 
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // BOTONES DE ACCIÓN: Cargar a Deck | Iniciar en Peak (Drop) | + Añadir a Cola
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Cargar a Deck (Normal desde Intro)
                 Button(
                     onClick = onLoadToDeck,
                     colors = ButtonDefaults.buttonColors(containerColor = rankColor),
                     shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.height(28.dp)
+                    modifier = Modifier.height(28.dp).weight(1f)
                 ) {
                     Text(
-                        text = "Cargar a Deck",
+                        text = "Deck (Intro)",
                         color = Color.Black,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
+                        fontSize = 10.sp
                     )
+                }
+
+                // OPCIÓN DE INICIAR EN PEAK (DROP)
+                OutlinedButton(
+                    onClick = onLoadFromPeak,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonAmber),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.height(28.dp).weight(1f)
+                ) {
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Load",
+                        imageVector = Icons.Default.Bolt,
+                        contentDescription = "Peak",
+                        tint = NeonAmber,
+                        modifier = Modifier.size(12.dp).padding(end = 2.dp)
+                    )
+                    Text(
+                        text = "Peak (${result.track.formattedPeakStart})",
+                        color = NeonAmber,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                    )
+                }
+
+                // AÑADIR A LA LISTA DE REPRODUCCIÓN AUTOMÁTICA
+                Button(
+                    onClick = onAddToQueue,
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isInQueue) NeonMagenta else NeonCyan),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.height(28.dp).weight(1.1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Cola",
                         tint = Color.Black,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(12.dp).padding(end = 2.dp)
+                    )
+                    Text(
+                        text = if (isInQueue) "En Cola" else "+ Cola Auto",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
                     )
                 }
             }

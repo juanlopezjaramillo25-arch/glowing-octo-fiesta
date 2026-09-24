@@ -22,15 +22,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -55,11 +59,13 @@ import com.djbooth.assistant.data.model.Track
 import com.djbooth.assistant.domain.MixPointCalculator
 import com.djbooth.assistant.ui.theme.DJCardSurface
 import com.djbooth.assistant.ui.theme.DJPanelBackground
+import com.djbooth.assistant.ui.theme.NeonAmber
 import com.djbooth.assistant.ui.theme.NeonCyan
 import com.djbooth.assistant.ui.theme.NeonEmerald
 import com.djbooth.assistant.ui.theme.NeonMagenta
 import com.djbooth.assistant.ui.theme.TextPrimary
 import com.djbooth.assistant.ui.theme.TextSecondary
+import kotlin.math.roundToInt
 
 @Composable
 fun LeftNowPlayingPanel(
@@ -69,6 +75,8 @@ fun LeftNowPlayingPanel(
     isPlaying: Boolean,
     onTogglePlay: () -> Unit,
     onSelectTrack: (Track) -> Unit,
+    onSeekPosition: (Int) -> Unit,
+    onJumpToPeak: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var dropdownExpanded by remember { mutableStateOf(false) }
@@ -89,13 +97,13 @@ fun LeftNowPlayingPanel(
             .clip(RoundedCornerShape(12.dp))
             .background(DJPanelBackground)
             .border(1.dp, Color(0xFF2B3148), RoundedCornerShape(12.dp))
-            .padding(16.dp)
+            .padding(14.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Header: Selector de pista sonando
+            // Header
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -103,22 +111,17 @@ fun LeftNowPlayingPanel(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.GraphicEq,
-                            contentDescription = "Deck Sonando",
-                            tint = NeonCyan,
-                            modifier = Modifier.padding(end = 6.dp)
-                        )
+                        CoolDJMascot()
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "DECK ACTUAL (NOW PLAYING)",
+                            text = "NOW PLAYING",
                             color = TextPrimary,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             letterSpacing = 1.sp
                         )
                     }
 
-                    // Selector Dropdown para elegir cualquier tema
                     Box {
                         Box(
                             modifier = Modifier
@@ -167,7 +170,7 @@ fun LeftNowPlayingPanel(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 if (currentTrack != null) {
                     val mixPointInfo = remember(currentTrack) {
@@ -178,24 +181,24 @@ fun LeftNowPlayingPanel(
                     val elapsedMin = playbackSeconds / 60
                     val elapsedSec = playbackSeconds % 60
                     val remMin = remainingSeconds / 60
-                    val remSec = remainingSeconds % 60
+                    val remSec = remainingSeconds / 60
 
                     val isMixPointReached = playbackSeconds >= mixPointInfo.mixPointSeconds
 
-                    // Tarjeta Principal del Tema Sonando
+                    // Tarjeta Principal
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .background(DJCardSurface)
                             .border(1.dp, if (isMixPointReached) NeonMagenta else Color(0xFF2B3148), RoundedCornerShape(12.dp))
-                            .padding(14.dp)
+                            .padding(12.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // Vinilo Animado
                             Box(
                                 modifier = Modifier
-                                    .size(76.dp)
+                                    .size(68.dp)
                                     .clip(CircleShape)
                                     .background(Color.Black)
                                     .border(2.dp, NeonCyan, CircleShape),
@@ -206,12 +209,12 @@ fun LeftNowPlayingPanel(
                                     contentDescription = "Vinyl",
                                     tint = NeonCyan,
                                     modifier = Modifier
-                                        .size(64.dp)
+                                        .size(56.dp)
                                         .rotate(if (isPlaying) rotation else 0f)
                                 )
                             }
 
-                            Spacer(modifier = Modifier.width(14.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
 
                             // Metadatos principales
                             Column(modifier = Modifier.weight(1f)) {
@@ -219,7 +222,7 @@ fun LeftNowPlayingPanel(
                                     text = currentTrack.title,
                                     color = TextPrimary,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp,
+                                    fontSize = 16.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -227,34 +230,32 @@ fun LeftNowPlayingPanel(
                                     text = currentTrack.artist,
                                     color = TextSecondary,
                                     fontWeight = FontWeight.Medium,
-                                    fontSize = 14.sp,
+                                    fontSize = 13.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
 
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // BPM Badge
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(6.dp))
                                             .background(NeonEmerald.copy(alpha = 0.2f))
                                             .border(1.dp, NeonEmerald, RoundedCornerShape(6.dp))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
                                     ) {
                                         Text(
                                             text = "${currentTrack.bpm.toInt()} BPM",
                                             color = NeonEmerald,
                                             fontWeight = FontWeight.Bold,
                                             fontFamily = FontFamily.Monospace,
-                                            fontSize = 13.sp
+                                            fontSize = 12.sp
                                         )
                                     }
 
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
 
-                                    // Key Badge
                                     CamelotKeyBadge(key = currentTrack.key)
                                 }
                             }
@@ -263,7 +264,7 @@ fun LeftNowPlayingPanel(
                             IconButton(
                                 onClick = onTogglePlay,
                                 modifier = Modifier
-                                    .size(48.dp)
+                                    .size(44.dp)
                                     .clip(CircleShape)
                                     .background(NeonCyan)
                             ) {
@@ -271,21 +272,21 @@ fun LeftNowPlayingPanel(
                                     imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                                     contentDescription = "Play/Pause",
                                     tint = Color.Black,
-                                    modifier = Modifier.size(28.dp)
+                                    modifier = Modifier.size(26.dp)
                                 )
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // Temporizadores y Barra de Progreso
+                    // Temporizadores + SLIDER DE BÚSQUEDA / ADELANTAR
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
                             .background(DJCardSurface)
-                            .padding(12.dp)
+                            .padding(10.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -297,10 +298,10 @@ fun LeftNowPlayingPanel(
                                     imageVector = Icons.Default.Timer,
                                     contentDescription = "Tiempo",
                                     tint = TextSecondary,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                                 Text(
-                                    text = String.format(" TRANSCURRIDO: %02d:%02d", elapsedMin, elapsedSec),
+                                    text = String.format(" %02d:%02d", elapsedMin, elapsedSec),
                                     color = TextPrimary,
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Bold,
@@ -308,8 +309,29 @@ fun LeftNowPlayingPanel(
                                 )
                             }
 
+                            // BOTÓN OPCIONAL: SALTAR AL PEAK (DROP)
+                            Button(
+                                onClick = onJumpToPeak,
+                                colors = ButtonDefaults.buttonColors(containerColor = NeonAmber),
+                                shape = RoundedCornerShape(6.dp),
+                                modifier = Modifier.height(26.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bolt,
+                                    contentDescription = "Peak",
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(13.dp).padding(end = 2.dp)
+                                )
+                                Text(
+                                    text = "Saltar al Peak (${currentTrack.formattedPeakStart})",
+                                    color = Color.Black,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                )
+                            }
+
                             Text(
-                                text = String.format("RESTANTE: -%02d:%02d", remMin, remSec),
+                                text = String.format("-%02d:%02d ", remMin, remSec),
                                 color = NeonMagenta,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold,
@@ -317,22 +339,23 @@ fun LeftNowPlayingPanel(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
 
-                        val progress = (playbackSeconds.toFloat() / currentTrack.durationSeconds.toFloat()).coerceIn(0f, 1f)
-
-                        LinearProgressIndicator(
-                            progress = progress,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = if (isMixPointReached) NeonMagenta else NeonCyan,
-                            trackColor = Color(0xFF262B3D)
+                        // SLIDER TÁCTIL PARA ADELANTAR/ATRASAR LA CANCIÓN
+                        Slider(
+                            value = playbackSeconds.toFloat().coerceIn(0f, currentTrack.durationSeconds.toFloat()),
+                            onValueChange = { onSeekPosition(it.roundToInt()) },
+                            valueRange = 0f..currentTrack.durationSeconds.toFloat(),
+                            colors = SliderDefaults.colors(
+                                thumbColor = if (isMixPointReached) NeonMagenta else NeonCyan,
+                                activeTrackColor = if (isMixPointReached) NeonMagenta else NeonCyan,
+                                inactiveTrackColor = Color(0xFF262B3D)
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // ALERTA VISUAL DE PUNTO DE MEZCLA / OUTRO
                     Box(
@@ -345,7 +368,7 @@ fun LeftNowPlayingPanel(
                                 color = if (isMixPointReached) NeonMagenta else NeonCyan.copy(alpha = 0.4f),
                                 shape = RoundedCornerShape(10.dp)
                             )
-                            .padding(12.dp)
+                            .padding(10.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -353,29 +376,40 @@ fun LeftNowPlayingPanel(
                                 contentDescription = "Mezcla",
                                 tint = if (isMixPointReached) NeonMagenta else NeonCyan,
                                 modifier = Modifier
-                                    .size(24.dp)
-                                    .padding(end = 8.dp)
+                                    .size(22.dp)
+                                    .padding(end = 6.dp)
                             )
 
                             Column {
                                 Text(
-                                    text = if (isMixPointReached) "¡SOLTAR SIGUIENTE TEMA AHORA!" else "PUNTO DE OUTRO CALCULADO",
+                                    text = if (isMixPointReached) "¡SOLTAR SIGUIENTE TEMA AHORA!" else "OUTRO CALCULADO",
                                     color = if (isMixPointReached) NeonMagenta else NeonCyan,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 12.sp,
+                                    fontSize = 11.sp,
                                     letterSpacing = 0.5.sp
                                 )
                                 Text(
                                     text = mixPointInfo.mixPointText,
                                     color = TextPrimary,
                                     fontWeight = FontWeight.SemiBold,
-                                    fontSize = 13.sp
+                                    fontSize = 12.sp
                                 )
                             }
                         }
                     }
                 } else {
-                    Text(text = "No hay ningún tema cargado", color = TextSecondary)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Importa canciones locales abajo para comenzar",
+                            color = TextSecondary,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         }

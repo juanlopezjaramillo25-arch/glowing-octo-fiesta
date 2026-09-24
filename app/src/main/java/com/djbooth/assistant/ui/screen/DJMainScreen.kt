@@ -28,6 +28,7 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
 
     val library by viewModel.library.collectAsState()
     val currentTrack by viewModel.currentTrack.collectAsState()
+    val playlistQueue by viewModel.playlistQueue.collectAsState()
     val crowdEnergy by viewModel.crowdEnergy.collectAsState()
     val setIntent by viewModel.setIntent.collectAsState()
     val recommendations by viewModel.recommendations.collectAsState()
@@ -40,7 +41,7 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(DJDarkBackground)
-            .padding(12.dp)
+            .padding(10.dp)
     ) {
         // 1. PANEL SUPERIOR (Control de Energía)
         TopEnergyPanel(
@@ -50,9 +51,9 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
             onIntentChange = { viewModel.setSetIntent(it) }
         )
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // 2. FILA CENTRAL DIVIDIDA (Panel Izquierdo: Sonando | Panel Derecho: Recomendaciones)
+        // 2. FILA CENTRAL DIVIDIDA
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -66,28 +67,36 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
                 isPlaying = isPlaying,
                 onTogglePlay = { viewModel.togglePlayback(context) },
                 onSelectTrack = { viewModel.selectTrack(context, it) },
+                onSeekPosition = { viewModel.seekTo(it) },
+                onJumpToPeak = {
+                    currentTrack?.let { track ->
+                        viewModel.selectTrack(context, track, track.peakStartSeconds)
+                    }
+                },
                 modifier = Modifier.weight(0.45f)
             )
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(8.dp))
 
-            // PANEL DERECHO: Sugerencias Inteligentes (55% ancho)
+            // PANEL DERECHO: Recomendaciones (55% ancho)
             RightRecommendationsPanel(
                 recommendations = recommendations,
+                playlistQueue = playlistQueue,
                 onSelectTrack = { viewModel.selectTrack(context, it) },
+                onSelectTrackFromPeak = { track -> viewModel.selectTrack(context, track, track.peakStartSeconds) },
+                onAddToQueue = { viewModel.addToQueue(it) },
                 modifier = Modifier.weight(0.55f)
             )
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         // 3. PANEL INFERIOR (Gestión de Biblioteca)
         BottomLibraryBar(
             totalTracksCount = library.size,
             isScanning = isScanning,
             statusMessage = statusMessage,
-            onImportAudioFiles = { uris -> viewModel.scanLocalFiles(context, uris) },
-            onReloadDemo = { viewModel.loadDemoLibrary() }
+            onImportAudioFiles = { uris -> viewModel.scanLocalFiles(context, uris) }
         )
     }
 }

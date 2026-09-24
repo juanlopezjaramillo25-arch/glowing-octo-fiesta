@@ -20,12 +20,10 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,12 +46,10 @@ fun BottomLibraryBar(
     isScanning: Boolean,
     statusMessage: String,
     onImportAudioFiles: (List<Uri>) -> Unit,
-    onReloadDemo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
 
-    // Launcher para seleccionar múltiples archivos MP3 / WAV
     val pickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
@@ -75,7 +71,7 @@ fun BottomLibraryBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Información y Estado de la Biblioteca
+            // Información de la Biblioteca
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Default.LibraryMusic,
@@ -109,57 +105,39 @@ fun BottomLibraryBar(
                 }
             }
 
-            // Acciones: Importar carpeta local + Recargar Demo
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(
-                    onClick = onReloadDemo,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(38.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Refresh,
-                        contentDescription = "Demo",
-                        modifier = Modifier.size(16.dp).padding(end = 4.dp)
+            // Botón de Importar Música Local
+            Button(
+                onClick = { pickerLauncher.launch("audio/*") },
+                colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.height(38.dp)
+            ) {
+                if (isScanning) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = Color.Black,
+                        strokeWidth = 2.dp
                     )
-                    Text(text = "Cargar Demo", fontSize = 12.sp)
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Button(
-                    onClick = { pickerLauncher.launch("audio/*") },
-                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.height(38.dp)
-                ) {
-                    if (isScanning) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = Color.Black,
-                            strokeWidth = 2.dp
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Analizando...",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.FolderOpen,
-                            contentDescription = "Importar",
-                            tint = Color.Black,
-                            modifier = Modifier.size(18.dp).padding(end = 4.dp)
-                        )
-                        Text(
-                            text = "Importar carpeta de música local",
-                            color = Color.Black,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Analizando...",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.FolderOpen,
+                        contentDescription = "Importar",
+                        tint = Color.Black,
+                        modifier = Modifier.size(18.dp).padding(end = 4.dp)
+                    )
+                    Text(
+                        text = "Importar carpeta de música local",
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
                 }
             }
         }

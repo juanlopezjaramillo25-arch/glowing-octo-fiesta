@@ -9,7 +9,6 @@ import androidx.lifecycle.viewModelScope
 import com.djbooth.assistant.data.model.RecommendationResult
 import com.djbooth.assistant.data.model.SetIntent
 import com.djbooth.assistant.data.model.Track
-import com.djbooth.assistant.data.scanner.DemoLibraryProvider
 import com.djbooth.assistant.data.scanner.MediaMetadataScanner
 import com.djbooth.assistant.domain.RecommendationEngine
 import kotlinx.coroutines.Job
@@ -26,6 +25,9 @@ class DJDeckViewModel : ViewModel() {
 
     private val _currentTrack = MutableStateFlow<Track?>(null)
     val currentTrack: StateFlow<Track?> = _currentTrack.asStateFlow()
+
+    private val _playlistQueue = MutableStateFlow<List<Track>>(emptyList())
+    val playlistQueue: StateFlow<List<Track>> = _playlistQueue.asStateFlow()
 
     private val _crowdEnergy = MutableStateFlow(7)
     val crowdEnergy: StateFlow<Int> = _crowdEnergy.asStateFlow()
@@ -45,27 +47,11 @@ class DJDeckViewModel : ViewModel() {
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
-    private val _statusMessage = MutableStateFlow("Biblioteca cargada. Selecciona un tema para reproducir.")
+    private val _statusMessage = MutableStateFlow("Importa tu carpeta de música para comenzar.")
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
 
     private var mediaPlayer: MediaPlayer? = null
     private var syncJob: Job? = null
-
-    init {
-        loadDemoLibrary()
-    }
-
-    fun loadDemoLibrary() {
-        stopAudio()
-        val demos = DemoLibraryProvider.getDemoTracks()
-        _library.value = demos
-        if (demos.isNotEmpty()) {
-            _currentTrack.value = demos[0]
-            _playbackSeconds.value = 0
-            _isPlaying.value = false
-        }
-        recalculateRecommendations()
-    }
 
     fun setCrowdEnergy(energy: Int) {
         _crowdEnergy.value = energy.coerceIn(1, 10)
@@ -77,11 +63,11 @@ class DJDeckViewModel : ViewModel() {
         recalculateRecommendations()
     }
 
-    fun selectTrack(context: Context, track: Track) {
+    fun selectTrack(context: Context, track: Track, startFromSeconds: Int = 0) {
         _currentTrack.value = track
         _statusMessage.value = "Sonando: ${track.title} - ${track.artist}"
         recalculateRecommendations()
-        playTrackAudio(context, track)
+        playTrackAudio(context, track, startFromSeconds)
     }
 
     fun togglePlayback(context: Context) {
@@ -98,12 +84,45 @@ class DJDeckViewModel : ViewModel() {
         } else {
             val track = _currentTrack.value
             if (track != null) {
-                playTrackAudio(context, track)
+                playTrackAudio(context, track, _playbackSeconds.value)
             }
         }
     }
 
-    private fun playTrackAudio(context: Context, track: Track) {
+    fun seekTo(seconds: Int) {
+        val track = _currentTrack.value ?: return
+        val clampedSec = seconds.coerceIn(0, track.durationSeconds)
+        _playbackSeconds.value = clampedSec
+        mediaPlayer?.let { player ->
+            try {
+                player.seekTo(clampedSec * 1000)
+            } catch (ignored: Exception) {}
+        }
+    }
+
+    fun addToQueue(track: Track) {
+        if (!_playlistQueue.value.any { it.id == track.id }) {
+            val updated = _playlistQueue.value + track
+            _playlistQueue.value = updated
+            _statusMessage.value = "Añadido a la cola auto: ${track.title}"
+        }
+    }
+
+    fun removeFromQueue(track: Track) {
+        val updated = _playlistQueue.value.filter { it.id != track.id }
+        _playlistQueue.value = updated
+    }
+
+    private fun playNextFromQueue(context: Context) {
+        val queue = _playlistQueue.value
+        if (queue.isNotEmpty()) {
+            val nextTrack = queue[0]
+            _playlistQueue.value = queue.drop(1)
+            selectTrack(context, nextTrack, startFromSeconds = 0)
+        }
+    }
+
+    private fun playTrackAudio(context: Context, track: Track, startFromSeconds: Int = 0) {
         stopAudio()
         try {
             val player = MediaPlayer().apply {
@@ -116,30 +135,37 @@ class DJDeckViewModel : ViewModel() {
             }
 
             if (track.filePath != null) {
-                // Reproducir archivo de audio local importado
                 player.setDataSource(context, Uri.parse(track.filePath))
                 player.prepareAsync()
                 player.setOnPreparedListener { mp ->
+                    if (startFromSeconds > 0) {
+                        mp.seekTo(startFromSeconds * 1000)
+                    }
                     mp.start()
                     _isPlaying.value = true
+                    _playbackSeconds.value = startFromSeconds
                     startSyncJob()
                 }
             } else {
-                // Modo simulado para canciones demo precargadas
                 _isPlaying.value = true
+                _playbackSeconds.value = startFromSeconds
                 startSyncJobSimulated(track.durationSeconds)
             }
 
             player.setOnCompletionListener {
                 _isPlaying.value = false
                 _playbackSeconds.value = 0
+                // Auto-reproducir siguiente tema de la cola si existe
+                if (_playlistQueue.value.isNotEmpty()) {
+                    playNextFromQueue(context)
+                }
             }
 
             mediaPlayer = player
         } catch (e: Exception) {
             e.printStackTrace()
-            // Fallback si no se puede reproducir el stream
             _isPlaying.value = true
+            _playbackSeconds.value = startFromSeconds
             startSyncJobSimulated(track.durationSeconds)
         }
     }
@@ -208,7 +234,7 @@ class DJDeckViewModel : ViewModel() {
             _isScanning.value = false
             _statusMessage.value = "¡${newTracks.size} temas importados! Total en biblioteca: ${updatedList.size}"
 
-            if (newTracks.isNotEmpty()) {
+            if (_currentTrack.value == null && newTracks.isNotEmpty()) {
                 selectTrack(context, newTracks[0])
             } else {
                 recalculateRecommendations()
