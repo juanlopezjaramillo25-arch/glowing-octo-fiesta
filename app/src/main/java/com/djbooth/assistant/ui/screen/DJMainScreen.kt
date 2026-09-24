@@ -64,8 +64,8 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
                 library = library,
                 playbackSeconds = playbackSeconds,
                 isPlaying = isPlaying,
-                onTogglePlay = { viewModel.togglePlayback() },
-                onSelectTrack = { viewModel.selectTrack(it) },
+                onTogglePlay = { viewModel.togglePlayback(context) },
+                onSelectTrack = { viewModel.selectTrack(context, it) },
                 modifier = Modifier.weight(0.45f)
             )
 
@@ -74,7 +74,7 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
             // PANEL DERECHO: Sugerencias Inteligentes (55% ancho)
             RightRecommendationsPanel(
                 recommendations = recommendations,
-                onSelectTrack = { viewModel.selectTrack(it) },
+                onSelectTrack = { viewModel.selectTrack(context, it) },
                 modifier = Modifier.weight(0.55f)
             )
         }

@@ -1,6 +1,8 @@
 package com.djbooth.assistant.ui.viewmodel
 
 import android.content.Context
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -37,28 +39,30 @@ class DJDeckViewModel : ViewModel() {
     private val _playbackSeconds = MutableStateFlow(0)
     val playbackSeconds: StateFlow<Int> = _playbackSeconds.asStateFlow()
 
-    private val _isPlaying = MutableStateFlow(true)
+    private val _isPlaying = MutableStateFlow(false)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
     private val _isScanning = MutableStateFlow(false)
     val isScanning: StateFlow<Boolean> = _isScanning.asStateFlow()
 
-    private val _statusMessage = MutableStateFlow("Biblioteca cargada con éxito.")
+    private val _statusMessage = MutableStateFlow("Biblioteca cargada. Selecciona un tema para reproducir.")
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
 
-    private var playbackJob: Job? = null
+    private var mediaPlayer: MediaPlayer? = null
+    private var syncJob: Job? = null
 
     init {
         loadDemoLibrary()
-        startTimer()
     }
 
     fun loadDemoLibrary() {
+        stopAudio()
         val demos = DemoLibraryProvider.getDemoTracks()
         _library.value = demos
-        if (_currentTrack.value == null && demos.isNotEmpty()) {
+        if (demos.isNotEmpty()) {
             _currentTrack.value = demos[0]
-            _playbackSeconds.value = 120 // Simular que va a mitad del tema (02:00)
+            _playbackSeconds.value = 0
+            _isPlaying.value = false
         }
         recalculateRecommendations()
     }
@@ -73,15 +77,115 @@ class DJDeckViewModel : ViewModel() {
         recalculateRecommendations()
     }
 
-    fun selectTrack(track: Track) {
+    fun selectTrack(context: Context, track: Track) {
         _currentTrack.value = track
-        _playbackSeconds.value = 0
-        _statusMessage.value = "Sonando ahora: ${track.title} - ${track.artist}"
+        _statusMessage.value = "Sonando: ${track.title} - ${track.artist}"
         recalculateRecommendations()
+        playTrackAudio(context, track)
     }
 
-    fun togglePlayback() {
-        _isPlaying.value = !_isPlaying.value
+    fun togglePlayback(context: Context) {
+        val player = mediaPlayer
+        if (player != null) {
+            if (player.isPlaying) {
+                player.pause()
+                _isPlaying.value = false
+            } else {
+                player.start()
+                _isPlaying.value = true
+                startSyncJob()
+            }
+        } else {
+            val track = _currentTrack.value
+            if (track != null) {
+                playTrackAudio(context, track)
+            }
+        }
+    }
+
+    private fun playTrackAudio(context: Context, track: Track) {
+        stopAudio()
+        try {
+            val player = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .build()
+                )
+            }
+
+            if (track.filePath != null) {
+                // Reproducir archivo de audio local importado
+                player.setDataSource(context, Uri.parse(track.filePath))
+                player.prepareAsync()
+                player.setOnPreparedListener { mp ->
+                    mp.start()
+                    _isPlaying.value = true
+                    startSyncJob()
+                }
+            } else {
+                // Modo simulado para canciones demo precargadas
+                _isPlaying.value = true
+                startSyncJobSimulated(track.durationSeconds)
+            }
+
+            player.setOnCompletionListener {
+                _isPlaying.value = false
+                _playbackSeconds.value = 0
+            }
+
+            mediaPlayer = player
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Fallback si no se puede reproducir el stream
+            _isPlaying.value = true
+            startSyncJobSimulated(track.durationSeconds)
+        }
+    }
+
+    private fun startSyncJob() {
+        syncJob?.cancel()
+        syncJob = viewModelScope.launch {
+            while (_isPlaying.value) {
+                val mp = mediaPlayer
+                if (mp != null && mp.isPlaying) {
+                    _playbackSeconds.value = mp.currentPosition / 1000
+                }
+                delay(500)
+            }
+        }
+    }
+
+    private fun startSyncJobSimulated(maxDuration: Int) {
+        syncJob?.cancel()
+        syncJob = viewModelScope.launch {
+            while (_isPlaying.value) {
+                delay(1000)
+                if (_isPlaying.value) {
+                    if (_playbackSeconds.value < maxDuration) {
+                        _playbackSeconds.value += 1
+                    } else {
+                        _playbackSeconds.value = 0
+                        _isPlaying.value = false
+                    }
+                }
+            }
+        }
+    }
+
+    private fun stopAudio() {
+        syncJob?.cancel()
+        mediaPlayer?.let { player ->
+            try {
+                if (player.isPlaying) {
+                    player.stop()
+                }
+                player.release()
+            } catch (ignored: Exception) {}
+        }
+        mediaPlayer = null
+        _isPlaying.value = false
     }
 
     fun scanLocalFiles(context: Context, uris: List<Uri>) {
@@ -104,8 +208,8 @@ class DJDeckViewModel : ViewModel() {
             _isScanning.value = false
             _statusMessage.value = "¡${newTracks.size} temas importados! Total en biblioteca: ${updatedList.size}"
 
-            if (_currentTrack.value == null && newTracks.isNotEmpty()) {
-                selectTrack(newTracks[0])
+            if (newTracks.isNotEmpty()) {
+                selectTrack(context, newTracks[0])
             } else {
                 recalculateRecommendations()
             }
@@ -124,28 +228,8 @@ class DJDeckViewModel : ViewModel() {
         _recommendations.value = top
     }
 
-    private fun startTimer() {
-        playbackJob?.cancel()
-        playbackJob = viewModelScope.launch {
-            while (true) {
-                delay(1000)
-                if (_isPlaying.value) {
-                    val current = _currentTrack.value
-                    if (current != null) {
-                        if (_playbackSeconds.value < current.durationSeconds) {
-                            _playbackSeconds.value += 1
-                        } else {
-                            // Reiniciar o pasar al siguiente si terminó
-                            _playbackSeconds.value = 0
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     override fun onCleared() {
         super.onCleared()
-        playbackJob?.cancel()
+        stopAudio()
     }
 }
