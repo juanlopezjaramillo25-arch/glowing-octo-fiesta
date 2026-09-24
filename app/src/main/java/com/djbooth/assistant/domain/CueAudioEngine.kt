@@ -22,7 +22,6 @@ class CueAudioEngine {
         context: Context,
         track: Track,
         startFromPeak: Boolean = false,
-        isSplitMonoMode: Boolean = true,
         onStateChange: (Boolean) -> Unit
     ) {
         stopCuePreview()
@@ -37,26 +36,18 @@ class CueAudioEngine {
                 )
             }
 
-            if (isSplitMonoMode) {
-                // MODO CUE SPLIT MONO DJ (Estándar de apps DJ):
-                // Canal Izquierdo = 0.0f (Sin salida en Master)
-                // Canal Derecho = 1.0f (Exclusivo Audífonos DJ)
-                player.setVolume(0.0f, 1.0f)
-            } else {
-                player.setVolume(1.0f, 1.0f)
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isSplitMonoMode) {
+            // Enrutamiento directo a audífonos Bluetooth o Jack sin cables splitter
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 val devices = audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-                val headphoneDevice = devices?.firstOrNull {
-                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
-                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                val bluetoothDevice = devices?.firstOrNull {
                     it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO
+                    it.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET
                 }
-                if (headphoneDevice != null) {
-                    player.setPreferredDevice(headphoneDevice)
+                if (bluetoothDevice != null) {
+                    player.setPreferredDevice(bluetoothDevice)
                 }
             }
 

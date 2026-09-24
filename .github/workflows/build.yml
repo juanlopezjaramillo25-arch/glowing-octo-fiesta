@@ -31,14 +31,14 @@ jobs:
     - name: Upload Debug APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: beatflow-dj-debug-apk-v1.4.0
+        name: beatflow-dj-debug-apk-v1.5.0
         path: app/build/outputs/apk/debug/app-debug.apk
 
-    - name: Publish Direct Release APK v1.4.0
+    - name: Publish Direct Release APK v1.5.0
       uses: softprops/action-gh-release@v1
       with:
-        tag_name: v1.4.0
-        name: BeatFlow DJ Support v1.4.0 (CUE Split DJ L/R & Device Routing)
+        tag_name: v1.5.0
+        name: BeatFlow DJ Support v1.5.0 (No-Splitter Smart CUE & Bluetooth Routing)
         draft: false
         prerelease: false
         files: app/build/outputs/apk/debug/app-debug.apk
