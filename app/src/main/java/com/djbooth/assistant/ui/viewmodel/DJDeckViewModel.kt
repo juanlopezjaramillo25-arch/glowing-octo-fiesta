@@ -2,8 +2,11 @@ package com.djbooth.assistant.ui.viewmodel
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.MediaPlayer
 import android.net.Uri
+import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.djbooth.assistant.data.model.QueuedTrack
@@ -52,7 +55,7 @@ class DJDeckViewModel : ViewModel() {
     private val _statusMessage = MutableStateFlow("Importa tu carpeta de música para comenzar.")
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
 
-    // PRE-ESCUCHA CUE SIN CABLE SPLITTER (SISTEMA DUCKING & BLUETOOTH DIRECTO)
+    // PRE-ESCUCHA CUE DUAL HARDWARE (MASTER: ALTAVOCES TABLET | CUE: BLUETOOTH)
     private val cueEngine = CueAudioEngine()
     private val _isCuePlaying = MutableStateFlow(false)
     val isCuePlaying: StateFlow<Boolean> = _isCuePlaying.asStateFlow()
@@ -159,25 +162,14 @@ class DJDeckViewModel : ViewModel() {
         }
     }
 
-    // PRE-ESCUCHA CUE INTELIGENTE SIN CABLE SPLITTER
     fun toggleCuePreview(context: Context, track: Track, startFromPeak: Boolean = false) {
         if (_isCuePlaying.value && _cueTrackId.value == track.id) {
             stopCuePreview()
         } else {
-            // Atenuar suavemente el volumen del tema principal (al 25%) para escuchar los audífonos con claridad
-            mediaPlayer?.let { player ->
-                try {
-                    player.setVolume(0.25f, 0.25f)
-                } catch (ignored: Exception) {}
-            }
-
-            _statusMessage.value = "Pre-escuchando en audífonos (Master atenuado): ${track.title}"
+            _statusMessage.value = "Pre-escuchando en audífonos Bluetooth: ${track.title}"
             cueEngine.playCuePreview(context, track, startFromPeak) { playing ->
                 _isCuePlaying.value = playing
                 _cueTrackId.value = if (playing) track.id else null
-                if (!playing) {
-                    restoreMasterVolume()
-                }
             }
         }
     }
@@ -186,16 +178,7 @@ class DJDeckViewModel : ViewModel() {
         cueEngine.stopCuePreview()
         _isCuePlaying.value = false
         _cueTrackId.value = null
-        restoreMasterVolume()
         _statusMessage.value = "Pre-escucha CUE finalizada."
-    }
-
-    private fun restoreMasterVolume() {
-        mediaPlayer?.let { player ->
-            try {
-                player.setVolume(1.0f, 1.0f)
-            } catch (ignored: Exception) {}
-        }
     }
 
     private fun playTrackAudio(context: Context, track: Track, startFromSeconds: Int = 0) {
@@ -208,6 +191,18 @@ class DJDeckViewModel : ViewModel() {
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
+            }
+
+            // FORZAR QUE EL MASTER SALGA POR LOS ALTAVOCES DE LA TABLET
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                val devices = audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+                val speakerDevice = devices?.firstOrNull {
+                    it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER
+                }
+                if (speakerDevice != null) {
+                    player.setPreferredDevice(speakerDevice)
+                }
             }
 
             player.setVolume(1.0f, 1.0f)
