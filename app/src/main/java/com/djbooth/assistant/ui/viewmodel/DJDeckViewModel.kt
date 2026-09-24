@@ -6,10 +6,12 @@ import android.media.MediaPlayer
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.djbooth.assistant.data.model.QueuedTrack
 import com.djbooth.assistant.data.model.RecommendationResult
 import com.djbooth.assistant.data.model.SetIntent
 import com.djbooth.assistant.data.model.Track
 import com.djbooth.assistant.data.scanner.MediaMetadataScanner
+import com.djbooth.assistant.domain.CueAudioEngine
 import com.djbooth.assistant.domain.RecommendationEngine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -26,8 +28,8 @@ class DJDeckViewModel : ViewModel() {
     private val _currentTrack = MutableStateFlow<Track?>(null)
     val currentTrack: StateFlow<Track?> = _currentTrack.asStateFlow()
 
-    private val _playlistQueue = MutableStateFlow<List<Track>>(emptyList())
-    val playlistQueue: StateFlow<List<Track>> = _playlistQueue.asStateFlow()
+    private val _playlistQueue = MutableStateFlow<List<QueuedTrack>>(emptyList())
+    val playlistQueue: StateFlow<List<QueuedTrack>> = _playlistQueue.asStateFlow()
 
     private val _crowdEnergy = MutableStateFlow(7)
     val crowdEnergy: StateFlow<Int> = _crowdEnergy.asStateFlow()
@@ -49,6 +51,14 @@ class DJDeckViewModel : ViewModel() {
 
     private val _statusMessage = MutableStateFlow("Importa tu carpeta de música para comenzar.")
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
+
+    // PRE-ESCUCHA CUE AUDÍFONOS (AUX / BLUETOOTH)
+    private val cueEngine = CueAudioEngine()
+    private val _isCuePlaying = MutableStateFlow(false)
+    val isCuePlaying: StateFlow<Boolean> = _isCuePlaying.asStateFlow()
+
+    private val _cueTrackId = MutableStateFlow<String?>(null)
+    val cueTrackId: StateFlow<String?> = _cueTrackId.asStateFlow()
 
     private var mediaPlayer: MediaPlayer? = null
     private var syncJob: Job? = null
@@ -100,26 +110,76 @@ class DJDeckViewModel : ViewModel() {
         }
     }
 
-    fun addToQueue(track: Track) {
-        if (!_playlistQueue.value.any { it.id == track.id }) {
-            val updated = _playlistQueue.value + track
+    // GESTIÓN AVANZADA DE COLA CON PEAK PREFERENCE
+    fun addToQueue(track: Track, startFromPeak: Boolean = false) {
+        if (!_playlistQueue.value.any { it.track.id == track.id }) {
+            val queued = QueuedTrack(track = track, startFromPeak = startFromPeak)
+            val updated = _playlistQueue.value + queued
             _playlistQueue.value = updated
-            _statusMessage.value = "Añadido a la cola auto: ${track.title}"
+            val startText = if (startFromPeak) "en Peak" else "en Intro"
+            _statusMessage.value = "Añadido a la cola auto ($startText): ${track.title}"
         }
     }
 
-    fun removeFromQueue(track: Track) {
-        val updated = _playlistQueue.value.filter { it.id != track.id }
+    fun toggleQueueTrackPeakMode(trackId: String) {
+        val updated = _playlistQueue.value.map { item ->
+            if (item.track.id == trackId) {
+                item.copy(startFromPeak = !item.startFromPeak)
+            } else {
+                item
+            }
+        }
         _playlistQueue.value = updated
     }
 
-    private fun playNextFromQueue(context: Context) {
+    fun removeFromQueue(trackId: String) {
+        val updated = _playlistQueue.value.filter { it.track.id != trackId }
+        _playlistQueue.value = updated
+    }
+
+    fun reorderQueue(fromIndex: Int, toIndex: Int) {
+        val list = _playlistQueue.value.toMutableList()
+        if (fromIndex in list.indices && toIndex in list.indices) {
+            val item = list.removeAt(fromIndex)
+            list.add(toIndex, item)
+            _playlistQueue.value = list
+        }
+    }
+
+    fun clearQueue() {
+        _playlistQueue.value = emptyList()
+    }
+
+    fun playNextFromQueue(context: Context) {
         val queue = _playlistQueue.value
         if (queue.isNotEmpty()) {
-            val nextTrack = queue[0]
+            val nextItem = queue[0]
             _playlistQueue.value = queue.drop(1)
-            selectTrack(context, nextTrack, startFromSeconds = 0)
+            val startSec = if (nextItem.startFromPeak) nextItem.track.peakStartSeconds else 0
+            selectTrack(context, nextItem.track, startFromSeconds = startSec)
         }
+    }
+
+    // PRE-ESCUCHA CUE AUDÍFONOS (HEADPHONES PREVIEW)
+    fun toggleCuePreview(context: Context, track: Track, startFromPeak: Boolean = false) {
+        if (_isCuePlaying.value && _cueTrackId.value == track.id) {
+            cueEngine.stopCuePreview()
+            _isCuePlaying.value = false
+            _cueTrackId.value = null
+            _statusMessage.value = "Pre-escucha CUE detenida."
+        } else {
+            _statusMessage.value = "Pre-escuchando en audífonos: ${track.title}"
+            cueEngine.playCuePreview(context, track, startFromPeak) { playing ->
+                _isCuePlaying.value = playing
+                _cueTrackId.value = if (playing) track.id else null
+            }
+        }
+    }
+
+    fun stopCuePreview() {
+        cueEngine.stopCuePreview()
+        _isCuePlaying.value = false
+        _cueTrackId.value = null
     }
 
     private fun playTrackAudio(context: Context, track: Track, startFromSeconds: Int = 0) {
@@ -155,7 +215,6 @@ class DJDeckViewModel : ViewModel() {
             player.setOnCompletionListener {
                 _isPlaying.value = false
                 _playbackSeconds.value = 0
-                // Auto-reproducir siguiente tema de la cola si existe
                 if (_playlistQueue.value.isNotEmpty()) {
                     playNextFromQueue(context)
                 }
@@ -257,5 +316,6 @@ class DJDeckViewModel : ViewModel() {
     override fun onCleared() {
         super.onCleared()
         stopAudio()
+        stopCuePreview()
     }
 }

@@ -28,6 +28,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.Composable
@@ -55,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.djbooth.assistant.data.model.QueuedTrack
 import com.djbooth.assistant.data.model.Track
 import com.djbooth.assistant.domain.MixPointCalculator
 import com.djbooth.assistant.ui.theme.DJCardSurface
@@ -71,12 +74,14 @@ import kotlin.math.roundToInt
 fun LeftNowPlayingPanel(
     currentTrack: Track?,
     library: List<Track>,
+    queue: List<QueuedTrack>,
     playbackSeconds: Int,
     isPlaying: Boolean,
     onTogglePlay: () -> Unit,
     onSelectTrack: (Track) -> Unit,
     onSeekPosition: (Int) -> Unit,
     onJumpToPeak: () -> Unit,
+    onOpenQueueDialog: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var dropdownExpanded by remember { mutableStateOf(false) }
@@ -112,7 +117,7 @@ fun LeftNowPlayingPanel(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CoolDJMascot()
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "NOW PLAYING",
                             color = TextPrimary,
@@ -122,49 +127,74 @@ fun LeftNowPlayingPanel(
                         )
                     }
 
-                    Box {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(DJCardSurface)
-                                .border(1.dp, NeonCyan.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                                .clickable { dropdownExpanded = true }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // BOTÓN VER Y GESTIONAR COLA
+                        OutlinedButton(
+                            onClick = onOpenQueueDialog,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonMagenta),
+                            shape = RoundedCornerShape(6.dp),
+                            modifier = Modifier.height(30.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Cambiar tema",
-                                    color = NeonCyan,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.ArrowDropDown,
-                                    contentDescription = "Selector",
-                                    tint = NeonCyan
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.QueueMusic,
+                                contentDescription = "Cola",
+                                tint = NeonMagenta,
+                                modifier = Modifier.size(14.dp).padding(end = 2.dp)
+                            )
+                            Text(
+                                text = "COLA (${queue.size})",
+                                color = NeonMagenta,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            )
                         }
 
-                        DropdownMenu(
-                            expanded = dropdownExpanded,
-                            onDismissRequest = { dropdownExpanded = false },
-                            modifier = Modifier.background(DJCardSurface)
-                        ) {
-                            library.forEach { track ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = "${track.title} - ${track.artist} (${track.bpm.toInt()} BPM / ${track.key})",
-                                            color = TextPrimary,
-                                            fontSize = 13.sp
-                                        )
-                                    },
-                                    onClick = {
-                                        onSelectTrack(track)
-                                        dropdownExpanded = false
-                                    }
-                                )
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Box {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(DJCardSurface)
+                                    .border(1.dp, NeonCyan.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                                    .clickable { dropdownExpanded = true }
+                                    .padding(horizontal = 6.dp, vertical = 4.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Temas",
+                                        color = NeonCyan,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDropDown,
+                                        contentDescription = "Selector",
+                                        tint = NeonCyan
+                                    )
+                                }
+                            }
+
+                            DropdownMenu(
+                                expanded = dropdownExpanded,
+                                onDismissRequest = { dropdownExpanded = false },
+                                modifier = Modifier.background(DJCardSurface)
+                            ) {
+                                library.forEach { track ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = "${track.title} - ${track.artist} (${track.bpm.toInt()} BPM / ${track.key})",
+                                                color = TextPrimary,
+                                                fontSize = 13.sp
+                                            )
+                                        },
+                                        onClick = {
+                                            onSelectTrack(track)
+                                            dropdownExpanded = false
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -181,7 +211,7 @@ fun LeftNowPlayingPanel(
                     val elapsedMin = playbackSeconds / 60
                     val elapsedSec = playbackSeconds % 60
                     val remMin = remainingSeconds / 60
-                    val remSec = remainingSeconds / 60
+                    val remSec = remainingSeconds % 60
 
                     val isMixPointReached = playbackSeconds >= mixPointInfo.mixPointSeconds
 
@@ -195,7 +225,6 @@ fun LeftNowPlayingPanel(
                             .padding(12.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            // Vinilo Animado
                             Box(
                                 modifier = Modifier
                                     .size(68.dp)
@@ -216,7 +245,6 @@ fun LeftNowPlayingPanel(
 
                             Spacer(modifier = Modifier.width(12.dp))
 
-                            // Metadatos principales
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = currentTrack.title,
@@ -260,7 +288,6 @@ fun LeftNowPlayingPanel(
                                 }
                             }
 
-                            // Botón Play/Pause
                             IconButton(
                                 onClick = onTogglePlay,
                                 modifier = Modifier
@@ -280,7 +307,7 @@ fun LeftNowPlayingPanel(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // Temporizadores + SLIDER DE BÚSQUEDA / ADELANTAR
+                    // Temporizadores + SLIDER TÁCTIL DE BÚSQUEDA
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -309,7 +336,6 @@ fun LeftNowPlayingPanel(
                                 )
                             }
 
-                            // BOTÓN OPCIONAL: SALTAR AL PEAK (DROP)
                             Button(
                                 onClick = onJumpToPeak,
                                 colors = ButtonDefaults.buttonColors(containerColor = NeonAmber),
@@ -323,7 +349,7 @@ fun LeftNowPlayingPanel(
                                     modifier = Modifier.size(13.dp).padding(end = 2.dp)
                                 )
                                 Text(
-                                    text = "Saltar al Peak (${currentTrack.formattedPeakStart})",
+                                    text = "Saltar a Peak (${currentTrack.formattedPeakStart})",
                                     color = Color.Black,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 10.sp
@@ -341,7 +367,6 @@ fun LeftNowPlayingPanel(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // SLIDER TÁCTIL PARA ADELANTAR/ATRASAR LA CANCIÓN
                         Slider(
                             value = playbackSeconds.toFloat().coerceIn(0f, currentTrack.durationSeconds.toFloat()),
                             onValueChange = { onSeekPosition(it.roundToInt()) },
@@ -357,7 +382,7 @@ fun LeftNowPlayingPanel(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // ALERTA VISUAL DE PUNTO DE MEZCLA / OUTRO
+                    // ALERTA DE PUNTO DE MEZCLA
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()

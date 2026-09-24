@@ -12,11 +12,15 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.djbooth.assistant.ui.components.BottomLibraryBar
 import com.djbooth.assistant.ui.components.LeftNowPlayingPanel
+import com.djbooth.assistant.ui.components.QueuePanelDialog
 import com.djbooth.assistant.ui.components.RightRecommendationsPanel
 import com.djbooth.assistant.ui.components.TopEnergyPanel
 import com.djbooth.assistant.ui.theme.DJDarkBackground
@@ -36,6 +40,11 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
     val isPlaying by viewModel.isPlaying.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
+
+    val isCuePlaying by viewModel.isCuePlaying.collectAsState()
+    val cueTrackId by viewModel.cueTrackId.collectAsState()
+
+    var showQueueDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -63,6 +72,7 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
             LeftNowPlayingPanel(
                 currentTrack = currentTrack,
                 library = library,
+                queue = playlistQueue,
                 playbackSeconds = playbackSeconds,
                 isPlaying = isPlaying,
                 onTogglePlay = { viewModel.togglePlayback(context) },
@@ -73,6 +83,7 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
                         viewModel.selectTrack(context, track, track.peakStartSeconds)
                     }
                 },
+                onOpenQueueDialog = { showQueueDialog = true },
                 modifier = Modifier.weight(0.45f)
             )
 
@@ -82,9 +93,12 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
             RightRecommendationsPanel(
                 recommendations = recommendations,
                 playlistQueue = playlistQueue,
+                isCuePlaying = isCuePlaying,
+                cueTrackId = cueTrackId,
                 onSelectTrack = { viewModel.selectTrack(context, it) },
                 onSelectTrackFromPeak = { track -> viewModel.selectTrack(context, track, track.peakStartSeconds) },
-                onAddToQueue = { viewModel.addToQueue(it) },
+                onAddToQueue = { track, peak -> viewModel.addToQueue(track, peak) },
+                onToggleCuePreview = { track, peak -> viewModel.toggleCuePreview(context, track, peak) },
                 modifier = Modifier.weight(0.55f)
             )
         }
@@ -97,6 +111,24 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
             isScanning = isScanning,
             statusMessage = statusMessage,
             onImportAudioFiles = { uris -> viewModel.scanLocalFiles(context, uris) }
+        )
+    }
+
+    // DIÁLOGO DE GESTIÓN DE COLA DE REPRODUCCIÓN AUTOMÁTICA
+    if (showQueueDialog) {
+        QueuePanelDialog(
+            queue = playlistQueue,
+            onDismiss = { showQueueDialog = false },
+            onRemoveFromQueue = { trackId -> viewModel.removeFromQueue(trackId) },
+            onTogglePeakMode = { trackId -> viewModel.toggleQueueTrackPeakMode(trackId) },
+            onReorder = { from, to -> viewModel.reorderQueue(from, to) },
+            onPlayQueuedNow = { item ->
+                viewModel.removeFromQueue(item.track.id)
+                val startSec = if (item.startFromPeak) item.track.peakStartSeconds else 0
+                viewModel.selectTrack(context, item.track, startSec)
+                showQueueDialog = false
+            },
+            onClearQueue = { viewModel.clearQueue() }
         )
     }
 }

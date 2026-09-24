@@ -27,7 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.runtime.Composable
@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.djbooth.assistant.data.model.QueuedTrack
 import com.djbooth.assistant.data.model.RecommendationResult
 import com.djbooth.assistant.data.model.Track
 import com.djbooth.assistant.ui.theme.DJCardSurface
@@ -54,10 +55,13 @@ import com.djbooth.assistant.ui.theme.TextSecondary
 @Composable
 fun RightRecommendationsPanel(
     recommendations: List<RecommendationResult>,
-    playlistQueue: List<Track>,
+    playlistQueue: List<QueuedTrack>,
+    isCuePlaying: Boolean,
+    cueTrackId: String?,
     onSelectTrack: (Track) -> Unit,
     onSelectTrackFromPeak: (Track) -> Unit,
-    onAddToQueue: (Track) -> Unit,
+    onAddToQueue: (Track, Boolean) -> Unit,
+    onToggleCuePreview: (Track, Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -155,13 +159,17 @@ fun RightRecommendationsPanel(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     itemsIndexed(recommendations) { index, item ->
+                        val isThisCuePlaying = isCuePlaying && cueTrackId == item.track.id
                         RecommendationCard(
                             rank = index + 1,
                             result = item,
-                            isInQueue = playlistQueue.any { it.id == item.track.id },
+                            isInQueue = playlistQueue.any { it.track.id == item.track.id },
+                            isCuePlaying = isThisCuePlaying,
                             onLoadToDeck = { onSelectTrack(item.track) },
                             onLoadFromPeak = { onSelectTrackFromPeak(item.track) },
-                            onAddToQueue = { onAddToQueue(item.track) }
+                            onAddToQueueIntro = { onAddToQueue(item.track, false) },
+                            onAddToQueuePeak = { onAddToQueue(item.track, true) },
+                            onToggleCue = { onToggleCuePreview(item.track, false) }
                         )
                     }
                 }
@@ -175,9 +183,12 @@ fun RecommendationCard(
     rank: Int,
     result: RecommendationResult,
     isInQueue: Boolean,
+    isCuePlaying: Boolean,
     onLoadToDeck: () -> Unit,
     onLoadFromPeak: () -> Unit,
-    onAddToQueue: () -> Unit
+    onAddToQueueIntro: () -> Unit,
+    onAddToQueuePeak: () -> Unit,
+    onToggleCue: () -> Unit
 ) {
     val rankColor = when (rank) {
         1 -> NeonEmerald
@@ -191,7 +202,7 @@ fun RecommendationCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(DJCardSurface)
-            .border(1.dp, rankColor.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+            .border(1.dp, if (isCuePlaying) NeonMagenta else rankColor.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
             .padding(10.dp)
     ) {
         Column {
@@ -200,7 +211,6 @@ fun RecommendationCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Rank + Track Info
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
@@ -244,7 +254,6 @@ fun RecommendationCard(
                     }
                 }
 
-                // Porcentaje de Match
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -334,13 +343,34 @@ fun RecommendationCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // BOTONES DE ACCIÓN: Cargar a Deck | Iniciar en Peak (Drop) | + Añadir a Cola
+            // BOTONES DE ACCIÓN COMPLETO: Cargar Deck | Peak | CUE Audífonos | + Cola (Intro/Peak)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Cargar a Deck (Normal desde Intro)
+                // CUE PRE-ESCUCHA AUDÍFONOS (AUX/BLUETOOTH)
+                Button(
+                    onClick = onToggleCue,
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isCuePlaying) NeonMagenta else Color(0xFF2B3148)),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Headphones,
+                        contentDescription = "CUE",
+                        tint = if (isCuePlaying) Color.White else NeonCyan,
+                        modifier = Modifier.size(12.dp).padding(end = 2.dp)
+                    )
+                    Text(
+                        text = if (isCuePlaying) "CUE ON" else "CUE",
+                        color = if (isCuePlaying) Color.White else TextPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                    )
+                }
+
+                // Cargar a Deck Intro
                 Button(
                     onClick = onLoadToDeck,
                     colors = ButtonDefaults.buttonColors(containerColor = rankColor),
@@ -348,14 +378,14 @@ fun RecommendationCard(
                     modifier = Modifier.height(28.dp).weight(1f)
                 ) {
                     Text(
-                        text = "Deck (Intro)",
+                        text = "Deck",
                         color = Color.Black,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp
                     )
                 }
 
-                // OPCIÓN DE INICIAR EN PEAK (DROP)
+                // Iniciar en Peak (Drop)
                 OutlinedButton(
                     onClick = onLoadFromPeak,
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonAmber),
@@ -366,35 +396,46 @@ fun RecommendationCard(
                         imageVector = Icons.Default.Bolt,
                         contentDescription = "Peak",
                         tint = NeonAmber,
-                        modifier = Modifier.size(12.dp).padding(end = 2.dp)
+                        modifier = Modifier.size(11.dp).padding(end = 2.dp)
                     )
                     Text(
-                        text = "Peak (${result.track.formattedPeakStart})",
+                        text = "Peak",
                         color = NeonAmber,
                         fontWeight = FontWeight.Bold,
                         fontSize = 10.sp
                     )
                 }
 
-                // AÑADIR A LA LISTA DE REPRODUCCIÓN AUTOMÁTICA
+                // AÑADIR A COLA INTRO
                 Button(
-                    onClick = onAddToQueue,
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isInQueue) NeonMagenta else NeonCyan),
+                    onClick = onAddToQueueIntro,
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonCyan),
                     shape = RoundedCornerShape(6.dp),
-                    modifier = Modifier.height(28.dp).weight(1.1f)
+                    modifier = Modifier.height(28.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Cola",
                         tint = Color.Black,
-                        modifier = Modifier.size(12.dp).padding(end = 2.dp)
+                        modifier = Modifier.size(11.dp)
                     )
-                    Text(
-                        text = if (isInQueue) "En Cola" else "+ Cola Auto",
-                        color = Color.Black,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp
+                    Text(text = "Intro", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 9.sp)
+                }
+
+                // AÑADIR A COLA PEAK
+                Button(
+                    onClick = onAddToQueuePeak,
+                    colors = ButtonDefaults.buttonColors(containerColor = NeonAmber),
+                    shape = RoundedCornerShape(6.dp),
+                    modifier = Modifier.height(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bolt,
+                        contentDescription = "Cola Peak",
+                        tint = Color.Black,
+                        modifier = Modifier.size(11.dp)
                     )
+                    Text(text = "Peak", color = Color.Black, fontWeight = FontWeight.Bold, fontSize = 9.sp)
                 }
             }
         }
