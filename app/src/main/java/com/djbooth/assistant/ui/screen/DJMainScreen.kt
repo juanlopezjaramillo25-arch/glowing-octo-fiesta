@@ -40,7 +40,6 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
     val isPlaying by viewModel.isPlaying.collectAsState()
     val isScanning by viewModel.isScanning.collectAsState()
     val statusMessage by viewModel.statusMessage.collectAsState()
-    val isSplitMonoMode by viewModel.isSplitMonoMode.collectAsState()
 
     val isCuePlaying by viewModel.isCuePlaying.collectAsState()
     val cueTrackId by viewModel.cueTrackId.collectAsState()
@@ -110,9 +109,7 @@ fun DJMainScreen(viewModel: DJDeckViewModel) {
         BottomLibraryBar(
             totalTracksCount = library.size,
             isScanning = isScanning,
-            isSplitMonoMode = isSplitMonoMode,
             statusMessage = statusMessage,
-            onToggleSplitMonoMode = { viewModel.toggleSplitMonoMode() },
             onImportAudioFiles = { uris -> viewModel.scanLocalFiles(context, uris) }
         )
     }

@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,7 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.djbooth.assistant.ui.theme.DJPanelBackground
-import com.djbooth.assistant.ui.theme.NeonAmber
 import com.djbooth.assistant.ui.theme.NeonCyan
 import com.djbooth.assistant.ui.theme.NeonEmerald
 import com.djbooth.assistant.ui.theme.NeonMagenta
@@ -48,9 +46,7 @@ import com.djbooth.assistant.ui.theme.TextSecondary
 fun BottomLibraryBar(
     totalTracksCount: Int,
     isScanning: Boolean,
-    isSplitMonoMode: Boolean,
     statusMessage: String,
-    onToggleSplitMonoMode: () -> Unit,
     onImportAudioFiles: (List<Uri>) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -111,27 +107,25 @@ fun BottomLibraryBar(
                 }
             }
 
-            // Opciones: Selector de Modo DJ Split L/R + Botón de Importar Música Local
+            // Opciones: Badge de Audio Dual + Botón de Importar Música Local
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // TOGGLE MODO CUE SPLIT DJ (CABLE SPLITTER / STEREO)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isSplitMonoMode) NeonMagenta.copy(alpha = 0.2f) else Color(0xFF262C40))
-                        .border(1.dp, if (isSplitMonoMode) NeonMagenta else Color(0xFF3D4666), RoundedCornerShape(8.dp))
-                        .clickable { onToggleSplitMonoMode() }
+                        .background(NeonMagenta.copy(alpha = 0.2f))
+                        .border(1.dp, NeonMagenta, RoundedCornerShape(8.dp))
                         .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             imageVector = Icons.Default.Headphones,
-                            contentDescription = "CUE Split",
-                            tint = if (isSplitMonoMode) NeonMagenta else TextSecondary,
+                            contentDescription = "Dual Audio",
+                            tint = NeonMagenta,
                             modifier = Modifier.size(16.dp).padding(end = 4.dp)
                         )
                         Text(
-                            text = if (isSplitMonoMode) "CUE Split DJ (L: Master | R: Cue)" else "Modo Stereo Normal",
-                            color = if (isSplitMonoMode) TextPrimary else TextSecondary,
+                            text = "Audio Dual (Master: Parlantes | CUE: Bluetooth)",
+                            color = TextPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
