@@ -37,9 +37,9 @@ object MediaMetadataScanner {
             val metaDuration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             val metaGenre = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_GENRE)
 
-            if (!metaTitle.isNull_or_blank()) title = metaTitle
-            if (!metaArtist.isNull_or_blank()) artist = metaArtist
-            if (!metaGenre.isNull_or_blank()) genre = metaGenre
+            if (!metaTitle.isNull_or_blank()) title = metaTitle!!
+            if (!metaArtist.isNull_or_blank()) artist = metaArtist!!
+            if (!metaGenre.isNull_or_blank()) genre = metaGenre!!
 
             metaDuration?.toLongOrNull()?.let { millis ->
                 durationSeconds = (millis / 1000).toInt()
@@ -58,7 +58,7 @@ object MediaMetadataScanner {
                 key = extractedKey
             } else {
                 // Generar una clave basada en hash del título para evitar valores estáticos
-                val keyIndex = (title.hashCode().toLong() and 0x7FFFFFFF % CAMELOT_KEYS.size).toInt()
+                val keyIndex = ((title.hashCode().toLong() and 0x7FFFFFFF) % CAMELOT_KEYS.size.toLong()).toInt()
                 key = CAMELOT_KEYS[keyIndex]
             }
 
