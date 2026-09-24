@@ -22,6 +22,7 @@ class CueAudioEngine {
         context: Context,
         track: Track,
         startFromPeak: Boolean = false,
+        isSplitMonoMode: Boolean = true,
         onStateChange: (Boolean) -> Unit
     ) {
         stopCuePreview()
@@ -36,8 +37,16 @@ class CueAudioEngine {
                 )
             }
 
-            // Intentar enrutar a audífonos AUX o Bluetooth si están conectados
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (isSplitMonoMode) {
+                // MODO CUE SPLIT MONO DJ (Estándar de apps DJ):
+                // Canal Izquierdo = 0.0f (Sin salida en Master)
+                // Canal Derecho = 1.0f (Exclusivo Audífonos DJ)
+                player.setVolume(0.0f, 1.0f)
+            } else {
+                player.setVolume(1.0f, 1.0f)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !isSplitMonoMode) {
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
                 val devices = audioManager?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
                 val headphoneDevice = devices?.firstOrNull {

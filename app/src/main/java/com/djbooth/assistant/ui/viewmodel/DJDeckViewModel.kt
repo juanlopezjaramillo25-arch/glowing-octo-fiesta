@@ -52,7 +52,10 @@ class DJDeckViewModel : ViewModel() {
     private val _statusMessage = MutableStateFlow("Importa tu carpeta de música para comenzar.")
     val statusMessage: StateFlow<String> = _statusMessage.asStateFlow()
 
-    // PRE-ESCUCHA CUE AUDÍFONOS (AUX / BLUETOOTH)
+    // MODO CUE SPLIT MONO L/R (ESTÁNDAR DJ APPS)
+    private val _isSplitMonoMode = MutableStateFlow(true)
+    val isSplitMonoMode: StateFlow<Boolean> = _isSplitMonoMode.asStateFlow()
+
     private val cueEngine = CueAudioEngine()
     private val _isCuePlaying = MutableStateFlow(false)
     val isCuePlaying: StateFlow<Boolean> = _isCuePlaying.asStateFlow()
@@ -71,6 +74,21 @@ class DJDeckViewModel : ViewModel() {
     fun setSetIntent(intent: SetIntent) {
         _setIntent.value = intent
         recalculateRecommendations()
+    }
+
+    fun toggleSplitMonoMode() {
+        val newMode = !_isSplitMonoMode.value
+        _isSplitMonoMode.value = newMode
+        mediaPlayer?.let { player ->
+            try {
+                if (newMode) {
+                    player.setVolume(1.0f, 0.0f) // Izquierdo Master
+                } else {
+                    player.setVolume(1.0f, 1.0f) // Stereo Normal
+                }
+            } catch (ignored: Exception) {}
+        }
+        _statusMessage.value = if (newMode) "Modo DJ Split L/R activado (Izquierda: Master | Derecha: CUE Audífonos)" else "Modo Stereo normal activado"
     }
 
     fun selectTrack(context: Context, track: Track, startFromSeconds: Int = 0) {
@@ -110,7 +128,6 @@ class DJDeckViewModel : ViewModel() {
         }
     }
 
-    // GESTIÓN AVANZADA DE COLA CON PEAK PREFERENCE
     fun addToQueue(track: Track, startFromPeak: Boolean = false) {
         if (!_playlistQueue.value.any { it.track.id == track.id }) {
             val queued = QueuedTrack(track = track, startFromPeak = startFromPeak)
@@ -160,7 +177,6 @@ class DJDeckViewModel : ViewModel() {
         }
     }
 
-    // PRE-ESCUCHA CUE AUDÍFONOS (HEADPHONES PREVIEW)
     fun toggleCuePreview(context: Context, track: Track, startFromPeak: Boolean = false) {
         if (_isCuePlaying.value && _cueTrackId.value == track.id) {
             cueEngine.stopCuePreview()
@@ -168,8 +184,8 @@ class DJDeckViewModel : ViewModel() {
             _cueTrackId.value = null
             _statusMessage.value = "Pre-escucha CUE detenida."
         } else {
-            _statusMessage.value = "Pre-escuchando en audífonos: ${track.title}"
-            cueEngine.playCuePreview(context, track, startFromPeak) { playing ->
+            _statusMessage.value = "Pre-escuchando CUE: ${track.title}"
+            cueEngine.playCuePreview(context, track, startFromPeak, _isSplitMonoMode.value) { playing ->
                 _isCuePlaying.value = playing
                 _cueTrackId.value = if (playing) track.id else null
             }
@@ -192,6 +208,13 @@ class DJDeckViewModel : ViewModel() {
                         .setUsage(AudioAttributes.USAGE_MEDIA)
                         .build()
                 )
+            }
+
+            if (_isSplitMonoMode.value) {
+                // Master sale por el Canal Izquierdo (1.0f, 0.0f)
+                player.setVolume(1.0f, 0.0f)
+            } else {
+                player.setVolume(1.0f, 1.0f)
             }
 
             if (track.filePath != null) {
